@@ -84,7 +84,7 @@ export const gedung = createTable(
     alamat: text("alamat"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   }),
-  (t) => [index("gedung_user_id_idx").on(t.userId)]
+  (t) => [index("gedung_user_id_idx").on(t.userId)],
 );
 
 // --- 2. ENTITAS RUANGAN ---
@@ -110,7 +110,7 @@ export const ruangan = createTable(
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
   }),
-  (t) => [index("ruangan_gedung_id_idx").on(t.gedungId)]
+  (t) => [index("ruangan_gedung_id_idx").on(t.gedungId)],
 );
 
 // --- 3. TABEL RIWAYAT KONSUMSI (Untuk Grafik Recharts/Tren) ---
@@ -129,7 +129,7 @@ export const logKonsumsi = createTable(
   (t) => [
     index("log_ruangan_id_idx").on(t.ruanganId),
     index("log_timestamp_idx").on(t.timestamp), // Penting untuk query grafik time-series
-  ]
+  ],
 );
 
 // --- 4. ENTITAS PERANGKAT (Opsional, untuk UI Status) ---
@@ -141,10 +141,12 @@ export const perangkat = createTable(
       .notNull()
       .references(() => ruangan.id, { onDelete: "cascade" }),
     nama: text("nama").notNull(),
-    tipe: text("tipe", { enum: ["AC", "Lampu", "Kulkas", "Oven", "Lainnya"] }).notNull(),
+    tipe: text("tipe", {
+      enum: ["AC", "Lampu", "Kulkas", "Oven", "Lainnya"],
+    }).notNull(),
     isAktif: boolean("is_aktif").notNull().default(false),
   }),
-  (t) => [index("perangkat_ruangan_id_idx").on(t.ruanganId)]
+  (t) => [index("perangkat_ruangan_id_idx").on(t.ruanganId)],
 );
 
 // --- 5. NOTIFIKASI & ALERT ---
@@ -155,17 +157,21 @@ export const notifikasi = createTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }), // Tertaut langsung ke user agar mudah difilter
-    ruanganId: text("ruangan_id").references(() => ruangan.id, { onDelete: "set null" }),
+    ruanganId: text("ruangan_id").references(() => ruangan.id, {
+      onDelete: "set null",
+    }),
     judul: text("judul").notNull(),
     deskripsi: text("deskripsi").notNull(),
-    severity: text("severity", { enum: ["Urgent", "Warning", "Info", "Success"] }).notNull(),
+    severity: text("severity", {
+      enum: ["Urgent", "Warning", "Info", "Success"],
+    }).notNull(),
     isRead: boolean("is_read").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   }),
   (t) => [
     index("notif_user_id_idx").on(t.userId),
     index("notif_ruangan_id_idx").on(t.ruanganId),
-  ]
+  ],
 );
 
 export const userRelations = relations(user, ({ many }) => ({
@@ -196,5 +202,8 @@ export const ruanganRelations = relations(ruangan, ({ one, many }) => ({
 }));
 
 export const logKonsumsiRelations = relations(logKonsumsi, ({ one }) => ({
-  ruangan: one(ruangan, { fields: [logKonsumsi.ruanganId], references: [ruangan.id] }),
+  ruangan: one(ruangan, {
+    fields: [logKonsumsi.ruanganId],
+    references: [ruangan.id],
+  }),
 }));

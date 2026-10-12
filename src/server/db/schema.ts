@@ -132,18 +132,16 @@ export const logKonsumsi = createTable(
   ],
 );
 
-// --- 4. ENTITAS PERANGKAT (Opsional, untuk UI Status) ---
+// --- 4. ENTITAS PERANGKAT ---
 export const perangkat = createTable(
   "perangkat",
   (d) => ({
-    id: text("id").primaryKey(),
+    id: text("id").primaryKey(), // Device ID (misal: "WW-NODE-01")
     ruanganId: text("ruangan_id")
       .notNull()
       .references(() => ruangan.id, { onDelete: "cascade" }),
-    nama: text("nama").notNull(),
-    tipe: text("tipe", {
-      enum: ["AC", "Lampu", "Kulkas", "Oven", "Lainnya"],
-    }).notNull(),
+    nama: text("nama").notNull(), // cth: "Alat Pengukur Ruang A"
+    apiKey: text("api_key").unique().notNull(), // Token untuk ESP32
     isAktif: boolean("is_aktif").notNull().default(false),
   }),
   (t) => [index("perangkat_ruangan_id_idx").on(t.ruanganId)],
@@ -199,6 +197,24 @@ export const ruanganRelations = relations(ruangan, ({ one, many }) => ({
   logKonsumsi: many(logKonsumsi),
   perangkat: many(perangkat),
   notifikasi: many(notifikasi),
+}));
+
+export const perangkatRelations = relations(perangkat, ({ one }) => ({
+  ruangan: one(ruangan, {
+    fields: [perangkat.ruanganId],
+    references: [ruangan.id],
+  }),
+}));
+
+export const notifikasiRelations = relations(notifikasi, ({ one }) => ({
+  user: one(user, {
+    fields: [notifikasi.userId],
+    references: [user.id],
+  }),
+  ruangan: one(ruangan, {
+    fields: [notifikasi.ruanganId],
+    references: [ruangan.id],
+  }),
 }));
 
 export const logKonsumsiRelations = relations(logKonsumsi, ({ one }) => ({

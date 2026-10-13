@@ -1,12 +1,36 @@
 services:
-  web:
-    build:
-      context: .
+  db:
+    image: postgres:16
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-U", "wattwatch", "-d", "wattwatch"]
+      interval: 3s
+      retries: 10
+      start_period: 30s
+    environment:
+      POSTGRES_DB: wattwatch
+      POSTGRES_USER: wattwatch
+      POSTGRES_PASSWORD: wattwatch
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - db:/var/lib/postgresql/data
     ports:
-      - "8000:3000"
+      - "5422:5432"
+
+  web:
+    image: wattwatch-web:latest
+    restart: always
+    ports:
+      - "8833:3000"
     environment:
       BASE_URL: ${BASE_URL}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_GOOGLE_CLIENT_ID: ${BETTER_AUTH_GOOGLE_CLIENT_ID}
       BETTER_AUTH_GOOGLE_CLIENT_SECRET: ${BETTER_AUTH_GOOGLE_CLIENT_SECRET}
-      DATABASE_URL: postgresql://localhost/asdasdsa
+      DATABASE_URL: postgresql://wattwatch:wattwatch@db:5432/wattwatch
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db:

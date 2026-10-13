@@ -1,11 +1,17 @@
 import { SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar";
 import { AppSidebar } from "~/components/app-sidebar";
+import { getSession } from "~/server/better-auth/server";
+import { redirect } from "next/navigation";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
-}) {
+  }) {
+  const sesh = await getSession();
+
+  if (!sesh) redirect("/");
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">

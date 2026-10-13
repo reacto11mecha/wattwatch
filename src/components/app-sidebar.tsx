@@ -32,7 +32,7 @@ const items = [
   { title: "Pengaturan", url: "/pengaturan", icon: Settings },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ name, email }: { name?: string; email?: string }) {
   const pathname = usePathname();
 
   return (
@@ -81,8 +81,8 @@ export function AppSidebar() {
               <User className="h-5 w-5" />
             </div>
             <div className="overflow-hidden">
-              <p className="truncate text-sm font-semibold text-primary-foreground">Admin UMKM</p>
-              <p className="truncate text-xs text-primary-foreground/70">admin@umkm.com</p>
+              <p className="truncate text-sm font-semibold text-primary-foreground">{name}</p>
+              <p className="truncate text-xs text-primary-foreground/70">{email}</p>
             </div>
           </div>
         </div>

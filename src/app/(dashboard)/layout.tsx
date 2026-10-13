@@ -12,10 +12,12 @@ export default async function DashboardLayout({
 
   if (!sesh) redirect("/");
 
+  console.log(sesh)
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
-        <AppSidebar />
+        <AppSidebar name={sesh.user.name} email={sesh.user.email}/>
 
         {/* Area Konten Utama */}
         <main className="flex w-full flex-col">

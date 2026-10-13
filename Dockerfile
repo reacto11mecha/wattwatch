@@ -43,30 +43,30 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static /app/next/.next/stat
 COPY --from=builder --chown=nextjs:nodejs /app/public /app/next/public
 COPY --from=builder --chown=nextjs:nodejs /app/package.json /app/next/package.json
 
-# # ---- 2. Siapkan folder migrator ----
-# RUN mkdir -p /app/migrator
-# WORKDIR /app/migrator
-#
-# # Salin folder drizzle dan script migrasi
-# COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
-# COPY --from=builder --chown=nextjs:nodejs /app/migrate.mjs ./migrate.mjs
-#
-# # Buat package.json khusus untuk migrator
-# RUN printf '%s\n' \
-# '{' \
-# '  "name": "migrator",' \
-# '  "type": "module",' \
-# '  "dependencies": {' \
-# '    "drizzle-orm": "^0.41.0",' \
-# '    "postgres": "^3.4.4"' \
-# '  }' \
-# '}' > package.json
-#
-# # Install dependencies migrator menggunakan npm (lebih stabil)
-# RUN npm install --prod
+# ---- 2. Siapkan folder migrator ----
+RUN mkdir -p /app/migrator
+WORKDIR /app/migrator
 
-# # Kembali ke WORKDIR /app agar CMD nanti mudah
-# WORKDIR /app
+# Salin folder drizzle dan script migrasi
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+COPY --from=builder --chown=nextjs:nodejs /app/migrate.mjs ./migrate.mjs
+
+# Buat package.json khusus untuk migrator
+RUN printf '%s\n' \
+ '{' \
+ '  "name": "migrator",' \
+ '  "type": "module",' \
+ '  "dependencies": {' \
+ '    "drizzle-orm": "^0.41.0",' \
+ '    "postgres": "^3.4.4"' \
+ '  }' \
+ '}' > package.json
+
+# Install dependencies migrator menggunakan npm (lebih stabil)
+RUN npm install --prod
+
+# Kembali ke WORKDIR /app agar CMD nanti mudah
+WORKDIR /app
 
 # Switch ke user nextjs
 USER nextjs
@@ -74,6 +74,6 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME="0.0.0.0"
 
-# # CMD: jalankan migrasi dari folder migrator, lalu jalankan Next.js dari folder next
-# CMD ["sh", "-c", "cd /app/migrator && node migrate.mjs && cd /app/next && exec node server.js"]
-CMD ["sh", "-c", "cd /app/next && exec node server.js"]
+# CMD: jalankan migrasi dari folder migrator, lalu jalankan Next.js dari folder next
+CMD ["sh", "-c", "cd /app/migrator && node migrate.mjs && cd /app/next && exec node server.js"]
+# CMD ["sh", "-c", "cd /app/next && exec node server.js"]

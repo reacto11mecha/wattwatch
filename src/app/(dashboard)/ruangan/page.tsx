@@ -1,160 +1,161 @@
 "use client";
 
-import { Search, Filter, Eye } from "lucide-react";
-import Link from "next/link";
+import { useState } from "react";
+import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
+import { Card } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table";
-import { Badge } from "~/components/ui/badge";
+import { useRouter } from "next/navigation";
 
-// --- MOCK DATA ---
-const roomData = [
-  {
-    id: "R101",
-    nama: "Ruang 101",
-    gedung: "Gedung A",
-    konsumsi: "12,4 kWh/hari",
-    score: 94,
-    status: "Normal",
-  },
-  {
-    id: "R202",
-    nama: "Ruang 202",
-    gedung: "Gedung A",
-    konsumsi: "18,2 kWh/hari",
-    score: 87,
-    status: "Normal",
-  },
-  {
-    id: "R301",
-    nama: "Ruang 301",
-    gedung: "Gedung B",
-    konsumsi: "27,5 kWh/hari",
-    score: 63,
-    status: "Warning",
-  },
-  {
-    id: "R402",
-    nama: "Ruang 402",
-    gedung: "Gedung B",
-    konsumsi: "34,8 kWh/hari",
-    score: 41,
-    status: "Abnormal",
-  },
-];
+export default function RuanganPage() {
+  const utils = api.useUtils(); // Untuk refresh data setelah input
+  const router = useRouter();
 
-// Helper untuk warna badge status
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case "Normal":
-      return (
-        <Badge variant="outline" className="border-[#18A878] bg-[#18A878]/10 text-[#18A878]">
-          🟢 Normal
-        </Badge>
-      );
-    case "Warning":
-      return (
-        <Badge variant="outline" className="border-[#F2A900] bg-[#F2A900]/10 text-[#F2A900]">
-          🟠 Warning
-        </Badge>
-      );
-    case "Abnormal":
-      return (
-        <Badge variant="outline" className="border-[#E05252] bg-[#E05252]/10 text-[#E05252]">
-          🔴 Abnormal
-        </Badge>
-      );
-    default:
-      return <Badge variant="outline">{status}</Badge>;
-  }
-};
+  // State untuk form sederhana
+  const [namaGedungBaru, setNamaGedungBaru] = useState("");
+  const [namaRuanganBaru, setNamaRuanganBaru] = useState("");
+  const [activeGedungId, setActiveGedungId] = useState<string | null>(null);
 
-export default function DaftarRuanganPage() {
+  // State untuk menyimpan kredensial yang baru digenerate agar bisa di-copy
+  const [kredensialBaru, setKredensialBaru] = useState<{ id: string; apiKey: string; namaRuangan: string } | null>(null);
+
+  // Queries
+  const { data: daftarGedung, isLoading } = api.lokasi.getGedung.useQuery();
+
+  // Mutations
+  const createGedung = api.lokasi.createGedung.useMutation({
+    onSuccess: () => {
+      utils.lokasi.getGedung.invalidate(); // Refresh data
+      setNamaGedungBaru("");
+    },
+  });
+
+  const createRuangan = api.lokasi.createRuangan.useMutation({
+    onSuccess: () => {
+      utils.lokasi.getGedung.invalidate();
+      setNamaRuanganBaru("");
+      setActiveGedungId(null);
+    },
+  });
+
+  const createPerangkat = api.perangkat.createPerangkat.useMutation({
+    onSuccess: (data, variables) => {
+      // Tampilkan hasil kredensial ke layar
+      setKredensialBaru({
+        id: data.id,
+        apiKey: data.apiKey,
+        namaRuangan: variables.nama, // Pinjam nama untuk display
+      });
+      alert("Alat berhasil didaftarkan! Silakan copy ID dan API Key yang muncul di atas layar.");
+    },
+  });
+
+  if (isLoading) return <div className="p-8">Memuat data...</div>;
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* HEADER */}
+    <div className="p-6 max-w-5xl mx-auto space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Daftar Ruangan</h1>
-        <p className="text-muted-foreground mt-1">
-          Monitor konsumsi energi setiap ruangan secara real-time.
-        </p>
+        <h1 className="text-3xl font-bold text-gray-800">Manajemen Ruangan & Perangkat</h1>
+        <p className="text-gray-500">Kelola lokasi dan hubungkan ESP32 WattWatch Anda di sini.</p>
       </div>
 
-      {/* FILTER & SEARCH */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-lg border border-border bg-card p-4 shadow-sm">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {/* --- KOTAK PERINGATAN KREDENSIAL (Hanya muncul saat baru pairing) --- */}
+      {kredensialBaru && (
+        <Card className="p-6 bg-blue-50 border-blue-400">
+          <h2 className="text-xl font-bold text-blue-800 mb-2">🎉 Pairing Berhasil!</h2>
+          <p className="text-sm text-red-600 font-semibold mb-4">
+            SIMPAN DATA INI SEKARANG. API Key tidak akan ditampilkan lagi setelah Anda merefresh halaman.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-500 font-bold">Device ID</label>
+              <Input readOnly value={kredensialBaru.id} className="font-mono bg-white" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 font-bold">API Key</label>
+              <Input readOnly value={kredensialBaru.apiKey} className="font-mono bg-white" />
+            </div>
+          </div>
+          <Button className="mt-4" onClick={() => setKredensialBaru(null)}>Tutup & Saya Sudah Copy</Button>
+        </Card>
+      )}
+
+      {/* --- FORM TAMBAH GEDUNG --- */}
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold mb-4">Tambah Gedung Baru</h2>
+        <div className="flex gap-4">
           <Input
-            placeholder="Cari ruangan..."
-            className="pl-9"
+            placeholder="Contoh: Pabrik Roti Cabang A"
+            value={namaGedungBaru}
+            onChange={(e) => setNamaGedungBaru(e.target.value)}
           />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="text-muted-foreground">
-            <Filter className="mr-2 h-4 w-4" /> Gedung
-          </Button>
-          <Button variant="outline" className="text-muted-foreground">
-            <Filter className="mr-2 h-4 w-4" /> Status
-          </Button>
-          <Button variant="outline" className="text-muted-foreground">
-            <Filter className="mr-2 h-4 w-4" /> Efisiensi
+          <Button
+            disabled={!namaGedungBaru || createGedung.isPending}
+            onClick={() => createGedung.mutate({ nama: namaGedungBaru })}
+          >
+            {createGedung.isPending ? "Menyimpan..." : "Simpan Gedung"}
           </Button>
         </div>
-      </div>
+      </Card>
 
-      {/* DATA TABLE */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
-        <Table>
-          <TableHeader className="bg-secondary/50">
-            <TableRow>
-              <TableHead className="font-semibold text-foreground">Ruangan</TableHead>
-              <TableHead className="font-semibold text-foreground">Gedung</TableHead>
-              <TableHead className="font-semibold text-foreground">Konsumsi</TableHead>
-              <TableHead className="font-semibold text-foreground">Efisiensi</TableHead>
-              <TableHead className="font-semibold text-foreground">Status</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {roomData.map((room) => (
-              <TableRow key={room.id} className="hover:bg-muted/50 transition-colors">
-                <TableCell className="font-medium text-foreground">{room.nama}</TableCell>
-                <TableCell className="text-muted-foreground">{room.gedung}</TableCell>
-                <TableCell className="text-muted-foreground">{room.konsumsi}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{room.score}/100</span>
-                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
-                      <div
-                        className={`h-full ${
-                          room.score >= 80 ? "bg-[#18A878]" :
-                          room.score >= 60 ? "bg-[#F2A900]" : "bg-[#E05252]"
-                        }`}
-                        style={{ width: `${room.score}%` }}
-                      />
-                    </div>
+      {/* --- DAFTAR GEDUNG & RUANGAN --- */}
+      <div className="space-y-6">
+        {daftarGedung?.length === 0 && (
+          <p className="text-gray-500 italic">Belum ada gedung. Silakan tambah gedung terlebih dahulu.</p>
+        )}
+
+        {daftarGedung?.map((gedung) => (
+          <Card key={gedung.id} className="p-6">
+            <h2 className="text-xl font-bold border-b pb-2 mb-4">{gedung.nama}</h2>
+
+            {/* List Ruangan di dalam Gedung ini */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {gedung.ruangan.length === 0 && <p className="text-sm text-gray-400">Belum ada ruangan di gedung ini.</p>}
+
+              {gedung.ruangan.map((ruang) => (
+                <div key={ruang.id} className="border p-4 rounded-md flex justify-between items-center bg-gray-50">
+                  <div>
+                    <h3 className="font-semibold text-lg">{ruang.nama}</h3>
+                    <p className="text-sm text-gray-500">Status: {ruang.status}</p>
                   </div>
-                </TableCell>
-                <TableCell>{getStatusBadge(room.status)}</TableCell>
-                <TableCell className="text-right">
-                  <Link href={`/ruangan/detail`}>
-                    <Button variant="ghost" size="sm" className="text-accent hover:text-accent hover:bg-accent/10">
-                      <Eye className="mr-2 h-4 w-4" />
-                      Detail
-                    </Button>
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+
+                  {/* Tombol Pairing ESP32 untuk Ruangan Ini */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => createPerangkat.mutate({ ruanganId: ruang.id, nama: `Alat ${ruang.nama}` })}
+                    disabled={createPerangkat.isPending}
+                  >
+                    + Pairing ESP32
+                  </Button>
+                  <Button size="sm" variant="default" onClick={() => router.push("/ruangan/detail?id=" + ruang.id)}>Lihat Detail</Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Form Tambah Ruangan Inline */}
+            {activeGedungId === gedung.id ? (
+              <div className="flex gap-2 mt-4 bg-gray-100 p-3 rounded-md">
+                <Input
+                  placeholder="Nama Ruangan (Cth: Ruang Produksi 1)"
+                  value={namaRuanganBaru}
+                  onChange={(e) => setNamaRuanganBaru(e.target.value)}
+                />
+                <Button
+                  onClick={() => createRuangan.mutate({ gedungId: gedung.id, nama: namaRuanganBaru })}
+                  disabled={!namaRuanganBaru || createRuangan.isPending}
+                >
+                  Simpan
+                </Button>
+                <Button variant="ghost" onClick={() => { setActiveGedungId(null); setNamaRuanganBaru(""); }}>Batal</Button>
+              </div>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={() => setActiveGedungId(gedung.id)}>
+                + Tambah Ruangan
+              </Button>
+            )}
+          </Card>
+        ))}
       </div>
     </div>
   );

@@ -1,261 +1,114 @@
 "use client";
 
-import {
-  ArrowLeft,
-  Thermometer,
-  Droplets,
-  Users,
-  Wind,
-  Lightbulb,
-  Refrigerator,
-  Microwave,
-  AlertTriangle,
-  Lightbulb as IdeaIcon,
-  TrendingDown,
-  Clock,
-  Zap,
-  Wallet,
-  Activity
-} from "lucide-react";
-import Link from "next/link";
-import {
-  Line,
-  LineChart,
-  CartesianGrid,
-  XAxis,
-  YAxis
-} from "recharts";
+import { useSearchParams, useRouter } from "next/navigation";
+import { api } from "~/trpc/react";
+import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "~/components/ui/chart";
 import { Badge } from "~/components/ui/badge";
-
-// --- MOCK DATA TREN KONSUMSI ---
-const trendData = [
-  { time: "08:00", kwh: 1.2 }, { time: "09:00", kwh: 2.5 },
-  { time: "10:00", kwh: 2.8 }, { time: "11:00", kwh: 3.1 },
-  { time: "12:00", kwh: 2.9 }, { time: "13:00", kwh: 2.7 },
-  { time: "14:00", kwh: 2.8 }, { time: "15:00", kwh: 2.6 },
-];
-
-const chartConfig = {
-  kwh: {
-    label: "Konsumsi (kWh)",
-    color: "hsl(var(--primary))",
-  },
-};
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function DetailRuanganPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const roomId = searchParams.get("id");
+
+  // Fetch data ruangan beserta log konsumsinya.
+  // refetchInterval: 5000 membuat halaman ini otomatis menarik data baru setiap 5 detik!
+  const { data: ruangan, isLoading } = api.lokasi.getRuanganById.useQuery(
+    { id: roomId ?? "" },
+    { enabled: !!roomId, refetchInterval: 5000 }
+  );
+
+  if (!roomId) {
+    return (
+      <div className="p-6 text-center space-y-4">
+        <p>ID Ruangan tidak ditemukan.</p>
+        <Button onClick={() => router.push("/ruangan")}>Kembali ke Daftar Ruangan</Button>
+      </div>
+    );
+  }
+
+  if (isLoading) return <div className="p-8 animate-pulse">Memuat data real-time...</div>;
+  if (!ruangan) return <div className="p-8 text-red-500">Data ruangan tidak ditemukan.</div>;
+
+  // Format data untuk grafik Recharts
+  const chartData = [...ruangan.logKonsumsi]
+    .reverse() // Balik agar data terlama di kiri, terbaru di kanan grafik
+    .map((log) => ({
+      waktu: new Date(log.timestamp).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }),
+      kWh: log.konsumsiKwh,
+      biaya: log.estimasiBiaya,
+    }));
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* HEADER & NAVIGATION */}
-      <div className="flex flex-col gap-4">
-        <Link href="/ruangan" className="flex items-center text-sm font-medium text-muted-foreground hover:text-foreground w-fit">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Daftar Ruangan
-        </Link>
-
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Detail Ruangan — Ruang Produksi</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <span className="text-sm text-muted-foreground">Gedung B • Lantai 1</span>
-              <Badge variant="outline" className="border-[#E05252] bg-[#E05252]/10 text-[#E05252] font-semibold">
-                🔴 Abnormal Usage Detected
-              </Badge>
-            </div>
-          </div>
-          <Button variant="outline" className="shrink-0 bg-background text-foreground">
-            Lihat Laporan Lengkap
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <div>
+          <Button variant="link" className="p-0 text-gray-500 mb-2" onClick={() => router.push("/ruangan")}>
+            &larr; Kembali
           </Button>
+          <h1 className="text-3xl font-bold text-gray-800">{ruangan.nama}</h1>
+          <p className="text-gray-500">Pemantauan Lingkungan & Energi Real-time</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-gray-500 mb-1">Status Ruangan</p>
+          <Badge variant={ruangan.status === "Warning" ? "destructive" : "default"} className="text-lg py-1">
+            {ruangan.status}
+          </Badge>
         </div>
       </div>
 
-      {/* SUMMARY METRICS */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Konsumsi Hari Ini</CardTitle>
-            <Zap className="h-4 w-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">12,4 kWh</div>
-          </CardContent>
+      {/* KARTU INDIKATOR REAL-TIME */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="p-6 flex flex-col items-center justify-center bg-blue-50 border-blue-100">
+          <p className="text-sm font-semibold text-blue-600 mb-2">Suhu Ruangan</p>
+          <p className="text-4xl font-bold text-blue-900">
+            {ruangan.suhu !== null ? `${ruangan.suhu.toFixed(1)}°C` : "--"}
+          </p>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Estimasi Biaya</CardTitle>
-            <Wallet className="h-4 w-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">Rp18.600</div>
-          </CardContent>
+
+        <Card className="p-6 flex flex-col items-center justify-center bg-teal-50 border-teal-100">
+          <p className="text-sm font-semibold text-teal-600 mb-2">Kelembapan</p>
+          <p className="text-4xl font-bold text-teal-900">
+            {ruangan.kelembapan !== null ? `${ruangan.kelembapan.toFixed(1)}%` : "--"}
+          </p>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Efficiency Score</CardTitle>
-            <Activity className="h-4 w-4 text-[#E05252]" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="text-2xl font-bold text-[#E05252]">63/100</div>
-              <div className="h-2 w-full max-w-[80px] overflow-hidden rounded-full bg-secondary">
-                <div className="h-full w-[63%] bg-[#E05252]" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Durasi Penggunaan</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">8j 42m</div>
-          </CardContent>
+
+        <Card className={`p-6 flex flex-col items-center justify-center border-2 ${ruangan.adaOrang ? "bg-red-50 border-red-400" : "bg-gray-50 border-gray-200"}`}>
+          <p className={`text-sm font-semibold mb-2 ${ruangan.adaOrang ? "text-red-600" : "text-gray-500"}`}>
+            Deteksi Pergerakan (PIR)
+          </p>
+          <p className={`text-2xl font-bold ${ruangan.adaOrang ? "text-red-600 animate-pulse" : "text-gray-700"}`}>
+            {ruangan.adaOrang ? "⚠️ ADA ORANG" : "KOSONG"}
+          </p>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* KONDISI RUANGAN (Sensors & Devices) */}
-        <Card className="lg:col-span-1 border-border shadow-sm">
-          <CardHeader>
-            <CardTitle>Kondisi Ruangan</CardTitle>
-            <CardDescription>Status real-time sensor & perangkat</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Visual Placeholder */}
-            <div className="aspect-video w-full rounded-lg bg-secondary/50 flex items-center justify-center border border-border/50">
-               <span className="text-muted-foreground text-sm flex items-center gap-2">
-                 <Users className="h-4 w-4"/> Ruang Kosong (PIR Sensor)
-               </span>
-            </div>
-
-            {/* Sensor Data */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col p-3 bg-secondary/30 rounded-lg border border-border/50">
-                <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <Thermometer className="h-4 w-4" /> <span className="text-xs font-medium">Suhu</span>
-                </div>
-                <span className="text-lg font-bold text-foreground">22°C</span>
-              </div>
-              <div className="flex flex-col p-3 bg-secondary/30 rounded-lg border border-border/50">
-                <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <Droplets className="h-4 w-4" /> <span className="text-xs font-medium">Kelembapan</span>
-                </div>
-                <span className="text-lg font-bold text-foreground">55%</span>
-              </div>
-            </div>
-
-            {/* Device Status */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground mb-2">Perangkat Aktif</h4>
-              <div className="flex items-center justify-between rounded-md border border-border p-2.5">
-                <div className="flex items-center gap-3">
-                  <Wind className="h-4 w-4 text-accent" />
-                  <span className="text-sm font-medium">AC Sentral</span>
-                </div>
-                <Badge variant="outline" className="border-[#18A878] bg-[#18A878]/10 text-[#18A878]">ON</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-md border border-border p-2.5">
-                <div className="flex items-center gap-3">
-                  <Lightbulb className="h-4 w-4 text-accent" />
-                  <span className="text-sm font-medium">Lampu Produksi</span>
-                </div>
-                <Badge variant="outline" className="border-[#18A878] bg-[#18A878]/10 text-[#18A878]">ON</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-md border border-border p-2.5">
-                <div className="flex items-center gap-3">
-                  <Refrigerator className="h-4 w-4 text-accent" />
-                  <span className="text-sm font-medium">Kulkas Pendingin</span>
-                </div>
-                <Badge variant="outline" className="border-[#18A878] bg-[#18A878]/10 text-[#18A878]">ON</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-md border border-border p-2.5 opacity-60">
-                <div className="flex items-center gap-3">
-                  <Microwave className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">Oven Listrik</span>
-                </div>
-                <Badge variant="outline" className="text-muted-foreground">OFF</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* TREN ENERGI & INSIGHTS */}
-        <div className="flex flex-col gap-6 lg:col-span-2">
-          {/* Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tren Konsumsi Energi Hari Ini</CardTitle>
-              <CardDescription>Pemantauan daya per jam (kWh)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Line type="monotone" dataKey="kwh" stroke="var(--color-kwh)" strokeWidth={3} dot={{ fill: "var(--color-kwh)" }} />
-                </LineChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-
-          {/* Waste Detection & Recommendation */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="border-[#E05252] bg-[#E05252]/5">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-[#E05252]" />
-                  <CardTitle className="text-lg text-[#E05252]">Waste Detection</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm font-medium text-foreground mb-4 leading-relaxed">
-                  Ruangan terpantau <span className="font-bold">kosong selama 2 jam 15 menit</span> (tidak ada aktivitas manusia terdeteksi oleh sensor PIR), tetapi <span className="font-bold">AC dan Lampu masih menyala</span> dengan konsumsi tinggi.
-                </p>
-                <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-[#E05252]/20">
-                  <TrendingDown className="h-5 w-5 text-[#E05252]" />
-                  <div className="flex flex-col">
-                    <span className="text-xs text-muted-foreground">Estimasi Pemborosan Harian</span>
-                    <span className="text-lg font-bold text-[#E05252]">Rp52.800 / hari</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-primary text-primary-foreground">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <IdeaIcon className="h-5 w-5 text-accent" />
-                  <CardTitle className="text-lg">WattWatch Recommendation</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3 text-sm text-primary-foreground/90">
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-accent shrink-0" />
-                    <span>Matikan AC dan Lampu Produksi setelah 20 menit tanpa aktivitas terdeteksi.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-accent shrink-0" />
-                    <span>Optimalkan suhu AC dari 22°C menjadi 26°C.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-accent shrink-0" />
-                    <span>Matikan seluruh perangkat *non-essential* setelah jam operasional toko selesai.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-accent shrink-0" />
-                    <span>Periksa filter AC secara berkala karena tarikan awal dayanya terpantau lebih tinggi dari normal.</span>
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
+      {/* GRAFIK KONSUMSI ENERGI */}
+      <Card className="p-6">
+        <h2 className="text-xl font-bold mb-6">Grafik Konsumsi Listrik (PZEM-004T)</h2>
+        {chartData.length > 0 ? (
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="waktu" stroke="#888" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value} kWh`} />
+                <Tooltip
+                  formatter={(value: number) => [`${value} kWh`, 'Konsumsi']}
+                  labelStyle={{ color: 'black' }}
+                />
+                <Line type="monotone" dataKey="kWh" stroke="#1a73e8" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-        </div>
-      </div>
+        ) : (
+          <div className="h-[300px] flex items-center justify-center text-gray-400 border-2 border-dashed rounded-md">
+            Belum ada data konsumsi listrik yang terekam.
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

@@ -1,190 +1,112 @@
 "use client";
 
-import { useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  Clock,
-  MapPin,
-  Check,
-  Filter
-} from "lucide-react";
+import { api } from "~/trpc/react";
+import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-
-// --- MOCK DATA ---
-const initialNotifications = [
-  {
-    id: 1,
-    title: "Abnormal Usage Detected",
-    description: "Ruang Produksi menggunakan listrik 32% lebih tinggi dari pola normal.",
-    ruangan: "Ruang Produksi",
-    waktu: "10 menit yang lalu",
-    severity: "urgent",
-    isRead: false,
-  },
-  {
-    id: 2,
-    title: "Potential Energy Waste",
-    description: "Ruang 301 kosong selama 45 menit tetapi AC masih menyala.",
-    ruangan: "Ruang 301",
-    waktu: "1 jam yang lalu",
-    severity: "warning",
-    isRead: false,
-  },
-  {
-    id: 3,
-    title: "High Consumption",
-    description: "Ruang 402 memiliki konsumsi listrik tertinggi hari ini.",
-    ruangan: "Ruang 402",
-    waktu: "3 jam yang lalu",
-    severity: "warning",
-    isRead: true,
-  },
-  {
-    id: 4,
-    title: "Energy Saving",
-    description: "Ruang 101 berhasil menghemat Rp12.500 hari ini berkat pengoptimalan suhu AC.",
-    ruangan: "Ruang 101",
-    waktu: "5 jam yang lalu",
-    severity: "success",
-    isRead: true,
-  },
-];
+import { Bell, Check, AlertTriangle, Info, CheckCircle } from "lucide-react";
 
 export default function NotifikasiPage() {
-  const [activeFilter, setActiveFilter] = useState("Semua");
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const utils = api.useUtils();
 
-  // Helper untuk mendapatkan icon dan warna berdasarkan severity
-  const getSeverityStyle = (severity: string) => {
+  // Ambil data notifikasi
+  const { data: notifikasi, isLoading } = api.notifikasi.getNotifikasi.useQuery();
+
+  // Fungsi untuk menandai sudah dibaca
+  const markAsRead = api.notifikasi.markAsRead.useMutation({
+    onSuccess: () => {
+      utils.notifikasi.getNotifikasi.invalidate(); // Refresh otomatis
+    },
+  });
+
+  if (isLoading) return <div className="p-8 animate-pulse text-gray-500">Memuat notifikasi...</div>;
+
+  // Helper untuk memilih ikon berdasarkan severity
+  const getIcon = (severity: string) => {
     switch (severity) {
-      case "urgent":
-        return {
-          icon: <AlertTriangle className="h-6 w-6 text-[#E05252]" />,
-          badge: <Badge variant="outline" className="border-[#E05252] bg-[#E05252]/10 text-[#E05252]">Urgent</Badge>,
-          border: "border-l-4 border-l-[#E05252]",
-        };
-      case "warning":
-        return {
-          icon: <AlertTriangle className="h-6 w-6 text-[#F2A900]" />,
-          badge: <Badge variant="outline" className="border-[#F2A900] bg-[#F2A900]/10 text-[#F2A900]">Warning</Badge>,
-          border: "border-l-4 border-l-[#F2A900]",
-        };
-      case "success":
-        return {
-          icon: <CheckCircle2 className="h-6 w-6 text-[#18A878]" />,
-          badge: <Badge variant="outline" className="border-[#18A878] bg-[#18A878]/10 text-[#18A878]">Informasi</Badge>,
-          border: "border-l-4 border-l-[#18A878]",
-        };
-      default:
-        return {
-          icon: <Info className="h-6 w-6 text-muted-foreground" />,
-          badge: <Badge variant="outline">Info</Badge>,
-          border: "border-l-4 border-l-border",
-        };
+      case "Urgent": return <AlertTriangle className="text-red-500 w-6 h-6" />;
+      case "Warning": return <AlertTriangle className="text-yellow-500 w-6 h-6" />;
+      case "Success": return <CheckCircle className="text-green-500 w-6 h-6" />;
+      default: return <Info className="text-blue-500 w-6 h-6" />;
     }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  // Helper untuk warna badge
+  const getBadgeVariant = (severity: string): "default" | "destructive" | "secondary" | "outline" => {
+    switch (severity) {
+      case "Urgent": return "destructive";
+      case "Warning": return "default";
+      case "Success": return "secondary";
+      default: return "outline";
+    }
   };
 
-  const filteredNotifications = notifications.filter(n => {
-    if (activeFilter === "Semua") return true;
-    if (activeFilter === "Urgent") return n.severity === "urgent";
-    if (activeFilter === "Warning") return n.severity === "warning";
-    if (activeFilter === "Informasi") return n.severity === "success" || n.severity === "info";
-    return true;
-  });
-
   return (
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full">
-      {/* HEADER */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-3 border-b pb-4">
+        <Bell className="h-7 w-7 text-gray-700" />
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Notifikasi & Alert</h1>
-          <p className="text-muted-foreground mt-1">
-            Pantau peringatan sistem dan aktivitas penggunaan energi.
-          </p>
+          <h1 className="text-3xl font-bold text-gray-800">Notifikasi</h1>
+          <p className="text-sm text-gray-500">Peringatan dan pembaruan sistem WattWatch</p>
         </div>
-        <Button variant="outline" onClick={markAllAsRead} className="bg-card shrink-0">
-          <Check className="mr-2 h-4 w-4" /> Tandai semua dibaca
-        </Button>
       </div>
 
-      {/* FILTER */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mr-2">
-          <Filter className="h-4 w-4" /> Filter:
-        </div>
-        {["Semua", "Urgent", "Warning", "Informasi"].map((filter) => (
-          <Button
-            key={filter}
-            variant={activeFilter === filter ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveFilter(filter)}
-            className={activeFilter === filter ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground"}
-          >
-            {filter}
-          </Button>
-        ))}
-      </div>
+      {notifikasi?.length === 0 ? (
+        <Card className="p-12 text-center text-gray-500 border-dashed">
+          Tidak ada notifikasi baru. Sistem berjalan normal.
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {notifikasi?.map((item) => (
+            <Card
+              key={item.id}
+              className={`p-5 flex items-start gap-4 transition-colors ${
+                item.isRead
+                  ? 'bg-gray-50/50 border-gray-200 shadow-none'
+                  : 'bg-white border-l-4 border-l-blue-500 shadow-sm'
+              }`}
+            >
+              <div className="mt-1">
+                {getIcon(item.severity)}
+              </div>
 
-      {/* NOTIFICATION LIST */}
-      <div className="flex flex-col gap-3">
-        {filteredNotifications.length > 0 ? (
-          filteredNotifications.map((notif) => {
-            const style = getSeverityStyle(notif.severity);
-            return (
-              <Card
-                key={notif.id}
-                className={`overflow-hidden transition-all hover:shadow-md ${style.border} ${notif.isRead ? 'bg-card/50 opacity-75' : 'bg-card shadow-sm'}`}
-              >
-                <CardContent className="p-4 sm:p-5 flex items-start gap-4">
-                  <div className="mt-1 shrink-0 p-2 rounded-full bg-secondary/50">
-                    {style.icon}
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <h3 className={`font-semibold ${notif.isRead ? 'text-muted-foreground' : 'text-foreground'}`}>
-                        {notif.title}
-                      </h3>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {style.badge}
-                        {!notif.isRead && (
-                          <span className="flex h-2 w-2 rounded-full bg-[#E05252]"></span>
-                        )}
-                      </div>
-                    </div>
-                    <p className={`text-sm mt-1 mb-2 ${notif.isRead ? 'text-muted-foreground/80' : 'text-muted-foreground'}`}>
-                      {notif.description}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {notif.ruangan}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5" />
-                        {notif.waktu}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        ) : (
-          <div className="text-center py-12 rounded-lg border border-dashed border-border bg-card/50">
-            <CheckCircle2 className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-            <h3 className="text-lg font-medium text-foreground">Tidak ada notifikasi</h3>
-            <p className="text-sm text-muted-foreground">Semua sistem berjalan normal.</p>
-          </div>
-        )}
-      </div>
+              <div className="flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1">
+                  <h3 className={`text-lg font-semibold ${item.isRead ? 'text-gray-600' : 'text-gray-900'}`}>
+                    {item.judul}
+                  </h3>
+                  <span className="text-xs text-gray-400 font-medium">
+                    {new Date(item.createdAt).toLocaleString('id-ID', {
+                      dateStyle: "medium",
+                      timeStyle: "short"
+                    })}
+                  </span>
+                </div>
+
+                <p className={`text-sm mb-3 ${item.isRead ? 'text-gray-500' : 'text-gray-700'}`}>
+                  {item.deskripsi}
+                </p>
+
+                <div className="flex items-center justify-between">
+                  <Badge variant={getBadgeVariant(item.severity)}>{item.severity}</Badge>
+
+                  {!item.isRead && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 h-8"
+                      onClick={() => markAsRead.mutate({ id: item.id })}
+                      disabled={markAsRead.isPending}
+                    >
+                      <Check className="w-4 h-4 mr-1" /> Tandai sudah dibaca
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import { Card } from "~/components/ui/card";
@@ -7,13 +8,12 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
-export default function DetailRuanganPage() {
+// 1. Pindahkan seluruh logika ke komponen terpisah
+function DetailRuanganContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const roomId = searchParams.get("id");
 
-  // Fetch data ruangan beserta log konsumsinya.
-  // refetchInterval: 5000 membuat halaman ini otomatis menarik data baru setiap 5 detik!
   const { data: ruangan, isLoading } = api.lokasi.getRuanganById.useQuery(
     { id: roomId ?? "" },
     { enabled: !!roomId, refetchInterval: 5000 }
@@ -31,9 +31,8 @@ export default function DetailRuanganPage() {
   if (isLoading) return <div className="p-8 animate-pulse">Memuat data real-time...</div>;
   if (!ruangan) return <div className="p-8 text-red-500">Data ruangan tidak ditemukan.</div>;
 
-  // Format data untuk grafik Recharts
   const chartData = [...ruangan.logKonsumsi]
-    .reverse() // Balik agar data terlama di kiri, terbaru di kanan grafik
+    .reverse()
     .map((log) => ({
       waktu: new Date(log.timestamp).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }),
       kWh: log.konsumsiKwh,
@@ -110,5 +109,14 @@ export default function DetailRuanganPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+// 2. Buat Komponen Utama yang membungkus dengan Suspense
+export default function DetailRuanganPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">Menyiapkan halaman detail...</div>}>
+      <DetailRuanganContent />
+    </Suspense>
   );
 }
